@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Compatibility shim: the canonical CLI is scripts/profile-manager.
+# Bare invocation runs the server in the foreground (historical behavior);
+# lifecycle subcommands pass straight through.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+case "${1:-}" in
+  start|stop|status|restart|run|open|install-skill)
+    exec "$ROOT/scripts/profile-manager" "$@" ;;
+  *)
+    exec "$ROOT/scripts/profile-manager" run "$@" ;;
+esac

@@ -1,0 +1,65 @@
+[[layer]]
+id = "seed-mission"
+ts = "2026-06-11T00:00:00Z"
+author = "profile-manager-maintainers"
+type = "load-bearing"
+body = "mission: a full-power visual operating surface for Hermes Agent profiles — beginners get readiness verdicts and guided flows, power users get the complete config surface; this tool is never reduced to a read-only dashboard"
+ctx = "profile-manager/mission"
+conf = 1.0
+markers = ["mission"]
+primitive = "layer"
+
+[[layer]]
+id = "seed-architecture"
+ts = "2026-06-11T00:01:00Z"
+author = "profile-manager-maintainers"
+type = "load-bearing"
+body = "architecture: stdlib+PyYAML HTTP server (webui/server.py) with flat sibling modules and a static JS UI (webui/static/); Hermes home resolves PROFILE_MANAGER_HERMES_HOME -> HERMES_HOME -> ~/.hermes; manager state (backups, audit, logs, pids) lives in .profile-manager/, never inside the Hermes home"
+ctx = "profile-manager/architecture"
+conf = 1.0
+markers = ["architecture", "paths"]
+primitive = "layer"
+
+[[layer]]
+id = "seed-portability-invariant"
+ts = "2026-06-11T00:02:00Z"
+author = "profile-manager-maintainers"
+type = "friction"
+body = "invariant: any machine-specific absolute path or personal default in webui/, scripts/, or skills/ is a defect; shipped defaults must not exceed defaults apparent in the official NousResearch/hermes-agent repo — in-ecosystem generics are profile 'default', providers 'nous'/'nous-api', model 'Hermes-4-405B'"
+ctx = "profile-manager/portability"
+conf = 1.0
+markers = ["invariant", "portability"]
+primitive = "layer"
+
+[[layer]]
+id = "seed-safety-model"
+ts = "2026-06-11T00:03:00Z"
+author = "profile-manager-maintainers"
+type = "load-bearing"
+body = "safety: every write requires an explicit confirm, takes a backup first, and appends an audit record with key names only — never secret values; exports exclude .env and auth.json; the server binds 127.0.0.1 only"
+ctx = "profile-manager/safety"
+conf = 1.0
+markers = ["invariant", "safety"]
+primitive = "layer"
+
+[[layer]]
+id = "seed-extension-surfaces"
+ts = "2026-06-11T00:04:00Z"
+author = "profile-manager-maintainers"
+type = "load-bearing"
+body = "honest labeling: profile_delegation.allowed_profiles, discord.channel_profiles, and skill_groups.enabled[] are extension surfaces, not yet implemented by the official runtime; capabilities.py detects at runtime whether the installed hermes-agent implements each and the UI labels native vs extension accordingly"
+ctx = "profile-manager/capabilities"
+conf = 1.0
+markers = ["extension-surfaces", "honesty"]
+primitive = "layer"
+
+[[layer]]
+id = "seed-testing"
+ts = "2026-06-11T00:05:00Z"
+author = "profile-manager-maintainers"
+type = "load-bearing"
+body = "testing: pytest suite under tests/ with the conftest 'iso' fixture isolating HERMES_HOME and manager state into tmp dirs; tests must never read or write a real ~/.hermes; keep the suite green before any completion claim"
+ctx = "profile-manager/testing"
+conf = 1.0
+markers = ["testing", "evidence"]
+primitive = "layer"

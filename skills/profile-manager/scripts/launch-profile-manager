@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Skill-installed wrapper for the Hermes Advanced Profile Manager CLI.
+# Resolution order: install-time pin (profile-manager.env, written by
+# `profile-manager install-skill`) -> PROFILE_MANAGER_HOME -> conventional
+# checkout locations.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+if [[ -f "$HERE/profile-manager.env" ]]; then
+  # shellcheck disable=SC1091
+  source "$HERE/profile-manager.env"
+fi
+
+candidates=()
+if [[ -n "${PROFILE_MANAGER_HOME:-}" ]]; then
+  candidates+=("$PROFILE_MANAGER_HOME")
+fi
+candidates+=(
+  "$HOME/Programming/hermes-advanced-profile-manager"
+  "$HOME/Projects/hermes-advanced-profile-manager"
+  "$HOME/src/hermes-advanced-profile-manager"
+  "$HOME/hermes-advanced-profile-manager"
+)
+
+for root in "${candidates[@]}"; do
+  cli="$root/scripts/profile-manager"
+  if [[ -x "$cli" ]]; then
+    exec "$cli" "$@"
+  fi
+done
+
+echo "profile-manager: could not locate the hermes-advanced-profile-manager checkout." >&2
+echo "Set PROFILE_MANAGER_HOME to the project root, or reinstall the skill with:" >&2
+echo "  /path/to/checkout/scripts/profile-manager install-skill" >&2
+exit 1

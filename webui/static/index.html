@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hermes Advanced Profile Manager</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <aside class="rail">
+      <div class="brand">
+        <div class="mark">H</div>
+        <div>
+          <h1>Advanced Profile Manager</h1>
+          <p>full-power profile operating surface</p>
+        </div>
+      </div>
+      <div class="rail-actions">
+        <button id="refresh" class="primary">Refresh profiles</button>
+        <button id="new-profile">Create profile</button>
+      </div>
+      <button id="shutdown-server" class="shutdown-btn" title="Stops ONLY this Profile Manager WebUI process. Hermes agents, gateways, and profiles are not touched.">⏻ Stop Profile Manager UI</button>
+      <input id="profile-filter" class="search" placeholder="Filter profiles…">
+      <div class="facet-stack">
+        <select id="domain-filter"><option value="">All domains</option></select>
+        <select id="role-filter"><option value="">All roles</option></select>
+        <select id="risk-filter"><option value="">All risk levels</option></select>
+      </div>
+      <div id="profile-list" class="profile-list"></div>
+    </aside>
+
+    <main class="main">
+      <header class="hero">
+        <div>
+          <h2 id="active-title">Select a profile</h2>
+          <p id="active-subtitle">Select a profile to configure.</p>
+        </div>
+        <div class="hero-stats">
+          <div><strong id="profile-count">0</strong><span>profiles</span></div>
+          <div><strong id="provider-count">0</strong><span>providers</span></div>
+          <div><strong id="skill-count">0</strong><span>assigned skills</span></div>
+          <div><strong id="issue-count">0</strong><span>issues</span></div>
+        </div>
+      </header>
+
+      <nav class="tabs" id="tab-nav">
+        <button data-tab="overview" class="active">1 · Overview</button>
+        <button data-tab="purpose">2 · Purpose &amp; intent</button>
+        <button data-tab="identity">3 · Identity &amp; instructions</button>
+        <button data-tab="domains">4 · Domains &amp; roles</button>
+        <button data-tab="groups">5 · Skill groups</button>
+        <button data-tab="skills">6 · Skills selector</button>
+        <button data-tab="toolsets">7 · Toolsets &amp; tools</button>
+        <button data-tab="mcp">8 · MCP servers</button>
+        <button data-tab="providers">9 · Providers &amp; routes</button>
+        <button data-tab="authenv">10 · Auth &amp; secrets</button>
+        <button data-tab="team">11 · Delegation &amp; team</button>
+        <button data-tab="channels">12 · Channels</button>
+        <button data-tab="changeset">13 · ChangeSet</button>
+        <button data-tab="validate">14 · Validate &amp; dry-run</button>
+        <button data-tab="backups">15 · Backups &amp; audit</button>
+        <button data-tab="raw">16 · Raw files</button>
+        <button data-tab="explorer" class="explorer-tab">✦ Explorer</button>
+      </nav>
+
+      <!-- 1 Overview -->
+      <section id="overview" class="panel active">
+        <div class="card readiness-card">
+          <div class="pane-head">
+            <div><h3>Readiness verdict</h3><p class="muted">Can this profile safely and effectively operate right now? Evidence-backed, not config-presence-backed.</p></div>
+            <div class="assignment-actions" style="grid-template-columns:auto auto">
+              <button id="readiness-offline">Quick check</button>
+              <button id="readiness-live" class="primary">Run live checks</button>
+            </div>
+          </div>
+          <div id="readiness" class="readiness empty">No readiness check run yet.</div>
+        </div>
+        <div class="grid two">
+          <div class="card"><h3>Effective profile summary</h3><div id="summary" class="kv"></div></div>
+          <div class="card"><h3>Validation &amp; diagnostics</h3><div id="issues" class="issues"></div></div>
+        </div>
+        <div class="card">
+          <h3>Power loop</h3>
+          <div class="flow"><span>Purpose</span><span>Identity</span><span>Capabilities</span><span>Skills</span><span>Tools/MCP/Providers</span><span>Auth/Env</span><span>Team</span><span>ChangeSet</span><span>Validate</span><span>Apply</span><span>Backup</span><span>Rollback</span><span>Audit</span></div>
+        </div>
+      </section>
+
+      <!-- 2 Purpose -->
+      <section id="purpose" class="panel">
+        <div class="workflow-launcher card">
+          <div class="workflow-head">
+            <div>
+              <h3>Build a profile from purpose</h3>
+              <p class="muted">Start from the job, not YAML. Domains and roles come from the live library — create missing ones inline on tab 4 without leaving this flow.</p>
+            </div>
+            <span class="badge">workflow</span>
+          </div>
+          <div class="purpose-grid">
+            <label>Domain <select id="purpose-domain"></select></label>
+            <label>Role <select id="purpose-role"></select></label>
+            <label>Risk <select id="purpose-risk">
+              <option value="">Default for role</option>
+              <option>read-only</option><option>local-write</option><option>remote-write</option><option>home-control</option><option>coordination</option>
+            </select></label>
+            <label>Tasks <input id="purpose-tasks" placeholder="debug, review, orchestrate…"></label>
+            <label>Target profile <select id="purpose-target"></select></label>
+            <button id="plan-purpose" class="primary">Generate profile plan</button>
+          </div>
+          <div id="workflow-plan" class="workflow-plan empty">No generated plan yet.</div>
+        </div>
+        <div class="card">
+          <h3>Inferred intent contract</h3>
+          <p class="muted">The current intent contract this profile presents to orchestration.</p>
+          <div id="intent-view" class="kv"></div>
+        </div>
+      </section>
+
+      <!-- 3 Identity -->
+      <section id="identity" class="panel">
+        <div class="grid two">
+          <div class="card">
+            <h3>Identity &amp; instruction files</h3>
+            <p class="muted">SOUL.md / HERMES.md / AGENTS.md with provenance: profile-local, inherited, or missing.</p>
+            <div id="identity-list" class="list"></div>
+          </div>
+          <div class="card">
+            <h3 id="identity-editor-title">Editor</h3>
+            <div class="purpose-grid" style="grid-template-columns:1fr 1fr auto">
+              <label>Copy from <select id="identity-copy-source"></select></label>
+              <label>&nbsp;<button id="identity-copy">Copy into profile</button></label>
+              <label>&nbsp;<button id="identity-save" class="danger">Save with backup</button></label>
+            </div>
+            <textarea id="identity-editor" class="mono" spellcheck="false" placeholder="Select an identity file…"></textarea>
+          </div>
+        </div>
+        <div class="card">
+          <h3>System prompt <span class="muted">(config.yaml · agent.system_prompt)</span></h3>
+          <textarea id="system-prompt-editor" class="mono" spellcheck="false"></textarea>
+          <div class="actions"><button id="system-prompt-save" class="danger">Save system prompt with backup</button></div>
+        </div>
+      </section>
+
+      <!-- 4 Domains & roles -->
+      <section id="domains" class="panel">
+        <div class="grid two">
+          <div class="card">
+            <h3>Domain library</h3>
+            <div id="domain-list" class="list"></div>
+            <h3 style="margin-top:14px">Create / edit domain</h3>
+            <div class="purpose-grid" style="grid-template-columns:1fr 2fr auto">
+              <label>Name <input id="domain-name" placeholder="rmm-support"></label>
+              <label>Description <input id="domain-desc"></label>
+              <label>&nbsp;<button id="domain-save" class="primary">Save domain</button></label>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Role library</h3>
+            <div id="role-list" class="list"></div>
+            <h3 style="margin-top:14px">Create / edit role</h3>
+            <div class="purpose-grid" style="grid-template-columns:1fr 1fr 1fr auto">
+              <label>Name <input id="role-name" placeholder="analyst"></label>
+              <label>Risk <select id="role-risk"><option>read-only</option><option>local-write</option><option>bounded-write</option><option>remote-write</option><option>coordination</option></select></label>
+              <label>Description <input id="role-desc"></label>
+              <label>&nbsp;<button id="role-save" class="primary">Save role</button></label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5 Skill groups -->
+      <section id="groups" class="panel">
+        <div class="grid groups-grid">
+          <div class="card">
+            <div class="pane-head">
+              <div><h3>Skill groups</h3><p class="muted">A skill group is a reusable capability package: which skills a profile must/should/must-not have, plus the toolsets and MCP servers they depend on.</p></div>
+              <button id="group-new" class="primary">New group</button>
+            </div>
+            <div id="group-list" class="list"></div>
+            <div class="actions">
+              <button id="group-import">Import manifest…</button>
+            </div>
+          </div>
+          <div class="card" id="group-editor-card">
+            <div class="pane-head">
+              <div><h3 id="group-editor-title">Group editor</h3><p class="muted" id="group-editor-hint">Select a group on the left, or click New group to start one.</p></div>
+            </div>
+            <div id="group-form" class="group-form hidden">
+              <div class="purpose-grid" style="grid-template-columns:1fr 2fr">
+                <label>Name <input id="gf-name" placeholder="rmm-support-operator"></label>
+                <label>Description <input id="gf-desc" placeholder="What capability does this package give a profile?"></label>
+              </div>
+              <div class="purpose-grid" style="grid-template-columns:1fr 1fr 1fr 1fr">
+                <label>Risk level <select id="gf-risk"><option>low</option><option selected>medium</option><option>high</option><option>critical</option></select></label>
+                <label>Load behavior <select id="gf-load"><option>lazy-index</option><option>always-load</option><option>on-demand</option></select></label>
+                <label class="inline" style="align-self:end"><input id="gf-dryrun" type="checkbox" checked> dry-run required</label>
+                <label class="inline" style="align-self:end"><input id="gf-export" type="checkbox" checked> exportable</label>
+              </div>
+              <div class="chip-fields">
+                <div class="chip-field" data-field="required_skills" data-suggest="skills"><b>Required skills</b><small>profile must have these enabled</small></div>
+                <div class="chip-field" data-field="recommended_skills" data-suggest="skills"><b>Recommended skills</b><small>enabled unless excluded</small></div>
+                <div class="chip-field" data-field="forbidden_skills" data-suggest="skills"><b>Forbidden skills</b><small>disabled when group applies</small></div>
+                <div class="chip-field" data-field="required_toolsets" data-suggest="toolsets"><b>Required toolsets</b><small>must be in profile toolsets</small></div>
+                <div class="chip-field" data-field="forbidden_toolsets" data-suggest="toolsets"><b>Forbidden toolsets</b><small>must not be enabled</small></div>
+                <div class="chip-field" data-field="mcp_dependencies" data-suggest="mcp"><b>MCP dependencies</b><small>servers this group needs</small></div>
+              </div>
+              <details class="advanced">
+                <summary>Advanced: authority, diagnostics, conflicts, delegation</summary>
+                <div class="purpose-grid" style="grid-template-columns:1fr 1fr">
+                  <label>Authority posture <input id="gf-authority" placeholder="e.g. read-mostly; ticket writes gated behind approval"></label>
+                  <label>Prompt policy <input id="gf-prompt" placeholder="e.g. load summaries only; index bodies"></label>
+                </div>
+                <div class="chip-fields">
+                  <div class="chip-field" data-field="recommended_toolsets" data-suggest="toolsets"><b>Recommended toolsets</b><small>nice to have</small></div>
+                  <div class="chip-field" data-field="conflicts" data-suggest="groups"><b>Conflicts with groups</b><small>cannot coexist</small></div>
+                  <div class="chip-field" data-field="diagnostics"><b>Diagnostics</b><small>checks proving the group works</small></div>
+                  <div class="chip-field" data-field="smoke_tests"><b>Smoke tests</b><small>post-apply verification steps</small></div>
+                  <div class="chip-field" data-field="allowed_repairs"><b>Allowed repairs</b><small>what auto-repair may do</small></div>
+                  <div class="chip-field" data-field="delegation_routes"><b>Delegation routes</b><small>e.g. analysis → worker-profile</small></div>
+                </div>
+                <details><summary>Raw manifest JSON (read/paste view)</summary><textarea id="group-editor" class="mono" spellcheck="false"></textarea><div class="actions"><button id="group-json-load">Load JSON into form</button></div></details>
+              </details>
+              <div class="actions">
+                <button id="group-duplicate">Duplicate…</button>
+                <button id="group-export">Export</button>
+                <button id="group-delete">Delete</button>
+                <button id="group-preview">Preview apply to <span id="group-preview-target"></span></button>
+                <button id="group-save" class="primary">Save group</button>
+              </div>
+            </div>
+            <div id="group-preview-out" class="workflow-plan empty">Save a group, then preview exactly what applying it to the active profile would change.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 6 Skills selector -->
+      <section id="skills" class="panel">
+        <div class="skill-manager">
+          <div class="skill-toolbar card">
+            <div>
+              <h3>Skill assignment</h3>
+              <p class="muted">Dual-list selector. Left: full installed catalog. Right: the actual assigned set. Saving writes <code>skills.disabled</code> with backup + audit.</p>
+            </div>
+            <div class="skill-counts">
+              <div><span>Assigned</span><strong id="assigned-count">0</strong></div>
+              <div><span>Catalog</span><strong id="available-count">0</strong></div>
+              <div><span>Draft</span><strong id="skills-dirty" class="badge">clean</strong></div>
+            </div>
+          </div>
+          <div class="skill-assignment-grid">
+            <div class="card skill-pane">
+              <div class="pane-head">
+                <div><h3>Available skills</h3><p class="muted">Filtering only narrows the view — nothing is added without an explicit action.</p></div>
+                <button id="add-filtered">Add 0 filtered…</button>
+              </div>
+              <div class="filters">
+                <input id="skill-filter" class="search" placeholder="Search name, description, tag, path…">
+                <select id="skill-category-filter"><option value="">All categories</option></select>
+                <label class="inline"><input id="show-enabled-only" type="checkbox"> assigned only</label>
+              </div>
+              <div id="skills-list" class="skill-list selectable"></div>
+            </div>
+            <div class="card skill-pane assigned-pane">
+              <div class="pane-head">
+                <div><h3>Assigned to profile</h3><p class="muted">Removal is one click per card, or Clear with confirm.</p></div>
+                <div class="assignment-actions">
+                  <label class="max-label">Max active <input id="max-enabled" type="number" min="1" value="40" title="Guardrail max enabled skills"></label>
+                  <button id="clear-assigned">Clear</button>
+                  <button id="save-skills" class="danger">Save assignment</button>
+                </div>
+              </div>
+              <div id="assigned-list" class="skill-list assigned"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7 Toolsets -->
+      <section id="toolsets" class="panel">
+        <div class="card">
+          <div class="pane-head">
+            <div><h3>Toolsets &amp; tools inspector</h3><p class="muted" id="toolset-source"></p></div>
+            <button id="toolsets-refresh">Refresh registry</button>
+          </div>
+          <div id="toolset-list" class="list"></div>
+        </div>
+      </section>
+
+      <!-- 8 MCP -->
+      <section id="mcp" class="panel">
+        <div class="card">
+          <div class="pane-head">
+            <div><h3>MCP servers</h3><p class="muted">Provenance, transport, env requirements (names only), live connection tests with discovered tool surfaces and risk classification.</p></div>
+            <button id="mcp-add">Add server…</button>
+          </div>
+          <div id="mcp-list" class="list"></div>
+        </div>
+      </section>
+
+      <!-- 9 Providers -->
+      <section id="providers" class="panel">
+        <div class="card">
+          <div class="pane-head">
+            <div><h3>Providers &amp; model routes</h3><p class="muted">Usage map (primary / fallback / delegation / auxiliary), auth status, live tests, safe route replacement.</p></div>
+            <button id="providers-refresh">Refresh</button>
+          </div>
+          <div id="providers-list" class="list"></div>
+        </div>
+        <div class="card">
+          <h3>Replace model route</h3>
+          <div class="purpose-grid" style="grid-template-columns:1fr 1fr 1fr auto">
+            <label>Route <select id="route-kind"><option value="primary">primary</option><option value="delegation">delegation</option></select></label>
+            <label>Provider <select id="route-provider"></select></label>
+            <label>Model <select id="route-model"></select></label>
+            <label>&nbsp;<button id="route-apply" class="danger">Apply route with backup</button></label>
+          </div>
+          <div id="route-meta" class="model-meta"></div>
+        </div>
+      </section>
+
+      <!-- 10 Auth & secrets -->
+      <section id="authenv" class="panel">
+        <div class="grid two">
+          <div class="card">
+            <h3>Auth source</h3>
+            <div id="auth-view" class="kv"></div>
+            <div id="auth-providers" class="list" style="margin-top:10px"></div>
+            <div class="actions">
+              <select id="auth-copy-source" style="max-width:220px"></select>
+              <button id="auth-copy">Copy auth from…</button>
+              <button id="auth-use-default">Use default auth</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Profile .env <span class="badge" id="env-scope"></span></h3>
+            <p class="muted" id="env-path"></p>
+            <div id="env-warnings"></div>
+            <div id="env-list" class="list"></div>
+            <div class="purpose-grid" style="grid-template-columns:1fr 1fr auto">
+              <label>Key <input id="env-key" placeholder="API_KEY_NAME"></label>
+              <label>Value <input id="env-value" type="password" placeholder="value (masked)"></label>
+              <label>&nbsp;<button id="env-set" class="danger">Set key</button></label>
+            </div>
+            <div class="actions">
+              <select id="env-copy-source" style="max-width:220px"></select>
+              <button id="env-copy">Copy .env from…</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 11 Delegation & team -->
+      <section id="team" class="panel">
+        <div class="card delegation-card">
+          <div class="pane-head">
+            <div>
+              <h3>Live delegation authority <span class="badge" id="del-config-ref">config.yaml · profile_delegation</span></h3>
+              <p class="muted">The real, current authority list this profile uses when calling <code>delegate_profile</code> — not a draft. Edits write config with backup + audit.</p>
+            </div>
+            <div class="assignment-actions" style="grid-template-columns:auto auto">
+              <button id="del-fix-stale" class="hidden">Fix stale names…</button>
+              <button id="del-save" class="danger">Save authority with backup</button>
+            </div>
+          </div>
+          <div id="del-gates" class="chips" style="margin-bottom:10px"></div>
+          <div class="grid two">
+            <div>
+              <div class="pane-head" style="margin-bottom:6px"><div><h3 style="font-size:14px">Allowed targets <span id="del-allowed-count" class="pill"></span></h3><p class="muted">Who this profile may delegate to. Remove anything it doesn't need.</p></div></div>
+              <div id="del-allowed" class="list" style="max-height:340px"></div>
+            </div>
+            <div>
+              <div class="pane-head" style="margin-bottom:6px"><div><h3 style="font-size:14px">Available profiles</h3><p class="muted">Click to grant delegation authority.</p></div></div>
+              <input id="del-filter" class="search" placeholder="Filter profiles…" style="margin-bottom:8px">
+              <div id="del-available" class="list" style="max-height:300px"></div>
+            </div>
+          </div>
+          <div class="purpose-grid" style="grid-template-columns:auto 1fr 1fr;margin-top:10px">
+            <label class="inline" style="align-self:end"><input type="checkbox" id="del-allow-self"> allow self-delegation</label>
+            <label>Max depth <input id="del-max-depth" type="number" min="1" placeholder="(default)"></label>
+            <label>Default timeout (s) <input id="del-timeout" type="number" min="1" placeholder="(default)"></label>
+          </div>
+          <details style="margin-top:10px"><summary class="muted">Worker model route &amp; inbound authority</summary>
+            <div class="grid two" style="margin-top:8px">
+              <div class="card"><h3 style="font-size:13px">Worker (subagent) model route</h3><div id="del-worker" class="kv"></div><p class="muted">Edit on tab 9 (Providers &amp; routes → delegation route).</p></div>
+              <div class="card"><h3 style="font-size:13px">Profiles that can delegate here</h3><div id="del-inbound" class="list"></div></div>
+            </div>
+          </details>
+        </div>
+        <div class="workflow-launcher card">
+          <div class="workflow-head">
+            <div>
+              <h3>Pair / team / orchestrator design</h3>
+              <p class="muted">Draft planner: choose topology, attach existing specialists, create missing ones inline, or mark future dependencies. Generates a ChangeSet — it does not edit the live authority list above.</p>
+            </div>
+            <span class="badge">draft planner</span>
+          </div>
+          <div class="purpose-grid" style="grid-template-columns:1fr 1fr auto auto">
+            <label>Primary <select id="team-primary"></select></label>
+            <label>Mode <select id="team-mode">
+              <option value="single">single</option>
+              <option value="pair" selected>pair: primary + one worker</option>
+              <option value="team">team: primary + specialists</option>
+              <option value="orchestrator">orchestrator: + evaluator/critic</option>
+            </select></label>
+            <label>&nbsp;<button id="team-add-specialist">Add specialist</button></label>
+            <label>&nbsp;<button id="plan-team" class="primary">Generate team plan</button></label>
+          </div>
+          <div id="team-evaluator-wrap" class="purpose-grid hidden" style="grid-template-columns:1fr 1fr 2fr">
+            <label>Evaluator / critic profile <input id="team-evaluator" list="profile-names" placeholder="read-only reviewer profile"></label>
+            <label>Provisioning <span id="team-evaluator-status" class="pill" style="margin-top:10px">—</span></label>
+            <label class="muted" style="align-self:end">Orchestrator mode adds a read-only reviewer that critiques specialist output before the primary accepts it.</label>
+          </div>
+          <div id="team-specialists"></div>
+          <div id="team-plan" class="workflow-plan empty">No team plan yet.</div>
+        </div>
+      </section>
+
+      <!-- 12 Channels -->
+      <section id="channels" class="panel">
+        <div class="card">
+          <div class="pane-head">
+            <div>
+              <h3>Communication channels <span class="badge" id="ch-config-ref"></span></h3>
+              <p class="muted" id="ch-note">Per-profile platform bot configuration: access policy, mention rules, channel prompts, and routing. Bot credentials are env tokens — names shown, values never displayed.</p>
+            </div>
+          </div>
+          <div id="ch-platforms"></div>
+        </div>
+      </section>
+
+      <!-- 13 ChangeSet -->
+      <section id="changeset" class="panel">
+        <div class="card">
+          <div class="pane-head">
+            <div><h3>Generated ProfileChangeSet</h3><p class="muted">The latest plan from Purpose or Team design. Bounded apply executes skill assignments and known config patches with backup; everything else is reported as skipped.</p></div>
+            <button id="changeset-apply" class="danger">Apply bounded ChangeSet…</button>
+          </div>
+          <div id="changeset-view" class="workflow-plan empty">No ChangeSet generated yet. Use tab 2 (Purpose) or tab 11 (Team design).</div>
+        </div>
+      </section>
+
+      <!-- 13 Validate -->
+      <section id="validate" class="panel">
+        <div class="grid two">
+          <div class="card">
+            <h3>Validate config draft</h3>
+            <p class="muted">Validates the raw-file draft (tab 15) against schema and secret-hygiene checks.</p>
+            <div class="actions">
+              <button id="validate-run" class="primary">Validate draft</button>
+              <button id="diff-run">Show diff vs disk</button>
+            </div>
+            <div id="validate-issues" class="issues"></div>
+          </div>
+          <div class="card">
+            <h3>Dry-run / smoke</h3>
+            <p class="muted">Re-runs the live readiness checks as post-change smoke evidence.</p>
+            <div class="actions"><button id="smoke-run" class="primary">Run smoke checks</button></div>
+            <div id="smoke-out" class="readiness empty">No smoke run yet.</div>
+          </div>
+        </div>
+        <div class="card"><h3>Diff</h3><pre id="diff-output" class="diff"></pre></div>
+      </section>
+
+      <!-- 14 Backups -->
+      <section id="backups" class="panel">
+        <div class="grid two">
+          <div class="card">
+            <div class="pane-head">
+              <div><h3>Backups / restore</h3></div>
+              <div class="assignment-actions" style="grid-template-columns:auto auto auto">
+                <button id="backup-now" class="primary">Create backup now</button>
+                <button id="rollback-last">Rollback last apply</button>
+                <button id="export-package">Export profile package</button>
+              </div>
+            </div>
+            <div id="backup-list" class="list"></div>
+            <pre id="backup-compare" class="diff"></pre>
+          </div>
+          <div class="card"><h3>Audit log</h3><div id="audit-list" class="audit"></div></div>
+        </div>
+      </section>
+
+      <!-- 15 Raw files -->
+      <section id="raw" class="panel">
+        <div class="workbench">
+          <div class="editor-wrap">
+            <div class="bar">
+              <strong>config.yaml draft</strong>
+              <span id="dirty" class="badge">clean</span>
+            </div>
+            <textarea id="config-editor" spellcheck="false"></textarea>
+          </div>
+          <aside class="sidecard">
+            <button id="validate" class="primary">Validate</button>
+            <button id="diff">Show diff</button>
+            <button id="apply" class="danger">Apply with backup</button>
+            <button id="reload">Discard / reload</button>
+            <div id="raw-files" class="list"></div>
+          </aside>
+        </div>
+        <div class="grid two" style="margin-top:14px">
+          <div class="card"><h3>Masked .env</h3><div id="raw-env" class="list"></div></div>
+          <div class="card"><h3>Auth metadata (redacted)</h3><div id="raw-auth" class="kv"></div><h3 style="margin-top:12px">Provenance</h3><div id="raw-provenance" class="kv"></div></div>
+        </div>
+      </section>
+      <!-- Explorer -->
+      <section id="explorer" class="panel">
+        <div class="explorer-shell">
+          <div class="explorer-toolbar">
+            <div class="mode-switch">
+              <button data-exmode="constellation" class="active" title="Force-directed view of the whole system">Constellation</button>
+              <button data-exmode="mindmap" title="Radial map centered on one profile">Mind map</button>
+              <button data-exmode="flow" title="Layered flow: orchestrators → profiles → resources">Flow</button>
+            </div>
+            <input id="ex-search" class="search" placeholder="Search nodes… (Enter selects)">
+            <div class="layer-switch" id="ex-layers">
+              <label class="inline"><input type="checkbox" data-exlayer="delegates" checked> delegation</label>
+              <label class="inline"><input type="checkbox" data-exlayer="routes" checked> channels</label>
+              <label class="inline"><input type="checkbox" data-exlayer="group" checked> groups</label>
+              <label class="inline"><input type="checkbox" data-exlayer="mcp" checked> MCP</label>
+              <label class="inline"><input type="checkbox" data-exlayer="model-route" checked> providers</label>
+              <label class="inline"><input type="checkbox" data-exlayer="skill"> skills</label>
+              <label class="inline"><input type="checkbox" data-exlayer="toolset"> toolsets</label>
+              <label class="inline"><input type="checkbox" id="ex-issues-only"> issues only</label>
+            </div>
+            <div class="ex-actions">
+              <button id="ex-fit" title="Fit graph to view">Fit</button>
+              <button id="ex-refresh" title="Rebuild graph from disk">Rescan</button>
+              <button id="ex-expand" title="Toggle full-bleed">⛶</button>
+            </div>
+            <div class="ex-sliders">
+              <label class="ex-slider">Zoom <input id="ex-zoom" type="range" min="0" max="1000" value="500" title="Granular zoom (syncs with mouse wheel)"></label>
+              <label class="ex-slider">Spread <input id="ex-spread" type="range" min="50" max="300" value="100" title="Node spacing / layout distance"></label>
+              <label class="ex-slider">Label size <input id="ex-labelsize" type="range" min="8" max="20" value="12" title="Base label font size"></label>
+              <label class="ex-slider">Labels <select id="ex-labelmode" title="Which labels to draw">
+                <option value="auto" selected>auto (declutter)</option>
+                <option value="profiles">profiles only</option>
+                <option value="all">all</option>
+                <option value="none">none</option>
+              </select></label>
+            </div>
+          </div>
+          <div class="explorer-body">
+            <canvas id="ex-canvas"></canvas>
+            <div id="ex-legend" class="ex-legend"></div>
+            <div id="ex-status" class="ex-status"></div>
+            <aside id="ex-panel" class="ex-panel hidden"></aside>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="create-dialog">
+    <form method="dialog" class="dialog-body">
+      <h3>Create profile</h3>
+      <label>Name <input id="create-name" required></label>
+      <label>Clone from <select id="create-base"></select></label>
+      <div class="actions"><button value="cancel">Cancel</button><button id="create-submit" class="primary" value="default">Create</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="app-modal">
+    <div class="dialog-body">
+      <h3 id="modal-title"></h3>
+      <div id="modal-body" class="modal-body"></div>
+      <div class="actions">
+        <button id="modal-cancel">Cancel</button>
+        <button id="modal-confirm" class="primary">Confirm</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="app.js"></script>
+  <script src="explorer.js"></script>
+</body>
+</html>
