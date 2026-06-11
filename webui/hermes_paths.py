@@ -33,8 +33,10 @@ def utc() -> str:
     return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _owns_profiles(path: Path) -> bool:
-    return (path / "profiles").is_dir()
+def _is_hermes_home(path: Path) -> bool:
+    # A Hermes installation root either has named profiles under profiles/
+    # or is a bare install whose default profile lives at the root itself.
+    return (path / "profiles").is_dir() or (path / "config.yaml").is_file() or (path / "config.yml").is_file()
 
 
 def hermes_home() -> Path:
@@ -43,10 +45,11 @@ def hermes_home() -> Path:
     Resolution order:
     1. PROFILE_MANAGER_HERMES_HOME — explicit manager override (CLI --hermes-home
        sets this); trusted as-is.
-    2. HERMES_HOME, when it actually owns a profiles/ directory.
+    2. HERMES_HOME, when it looks like an installation root (profiles/ dir or
+       a bare install's root config.yaml).
     3. Walk up from HERMES_HOME: Hermes sessions can expose a profile directory
        (e.g. <home>/profiles/<name>) or a profile-scoped sandbox as HERMES_HOME;
-       the nearest ancestor owning profiles/ is the real installation root.
+       the nearest ancestor that looks like a root is the real installation.
     4. ~/.hermes as the conventional default location.
     """
     override = os.environ.get("PROFILE_MANAGER_HERMES_HOME")
@@ -55,10 +58,10 @@ def hermes_home() -> Path:
     env = os.environ.get("HERMES_HOME")
     if env:
         candidate = Path(env).expanduser()
-        if _owns_profiles(candidate):
+        if _is_hermes_home(candidate):
             return candidate
         for ancestor in candidate.parents:
-            if _owns_profiles(ancestor):
+            if _is_hermes_home(ancestor):
                 return ancestor
     return Path.home() / ".hermes"
 
@@ -67,11 +70,29 @@ def profiles_root() -> Path:
     return hermes_home() / "profiles"
 
 
+def _root_default_exists() -> bool:
+    home = hermes_home()
+    return (home / "config.yaml").is_file() or (home / "config.yml").is_file()
+
+
 def profile_dir(name: str) -> Path:
     safe = Path(name)
     if safe.is_absolute() or ".." in safe.parts or len(safe.parts) != 1 or not name.strip():
         raise ValueError("invalid profile name")
+    if name == "default" and not (profiles_root() / "default").is_dir():
+        # Upstream hermes-agent keeps the default profile at the installation
+        # root; profiles/ holds named profiles only and may not exist at all.
+        return hermes_home()
     return profiles_root() / name
+
+
+def list_profile_names() -> list[str]:
+    """Every profile this installation has: named profiles plus the root default."""
+    root = profiles_root()
+    names = sorted((d.name for d in root.iterdir() if d.is_dir()), key=str.lower) if root.exists() else []
+    if "default" not in names and _root_default_exists():
+        names.insert(0, "default")
+    return names
 
 
 def config_path(name: str) -> Path:

@@ -54,6 +54,17 @@ markers = ["extension-surfaces", "honesty"]
 primitive = "layer"
 
 [[layer]]
+id = "seed-root-default-profile"
+ts = "2026-06-11T00:06:00Z"
+author = "profile-manager-maintainers"
+type = "friction"
+body = "invariant: upstream hermes-agent keeps the default profile at the HERMES_HOME root (config.yaml, SOUL.md, .env, auth.json); profiles/ holds named profiles only and may not exist on a clean install — profile enumeration must go through hermes_paths.list_profile_names() and 'default' maps to the home root via profile_dir(); never enumerate profiles/* directly"
+ctx = "profile-manager/portability"
+conf = 1.0
+markers = ["invariant", "bare-install"]
+primitive = "layer"
+
+[[layer]]
 id = "seed-testing"
 ts = "2026-06-11T00:05:00Z"
 author = "profile-manager-maintainers"
