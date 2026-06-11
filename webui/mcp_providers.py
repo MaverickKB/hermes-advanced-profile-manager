@@ -155,21 +155,84 @@ def _stdio_mcp_tools(command: str, args: list[str], env: dict[str, str], timeout
         tools_msg = recv(2)
         if not tools_msg or tools_msg.get("error"):
             return {"ok": False, "stage": "tools/list", "error": (tools_msg or {}).get("error") or "no response"}
-        tools = (tools_msg.get("result") or {}).get("tools") or []
-        server_info = (init.get("result") or {}).get("serverInfo") or {}
-        return {
-            "ok": True,
-            "server_info": {"name": server_info.get("name"), "version": server_info.get("version")},
-            "tool_count": len(tools),
-            "tools": [{
-                "name": t.get("name"),
-                "description": str(t.get("description") or "")[:200],
-                "risk": _classify_tool_risk(str(t.get("name") or ""), str(t.get("description") or "")),
-            } for t in tools if isinstance(t, dict)],
-        }
+        return _handshake_result(init, tools_msg)
     finally:
         proc.kill()
         proc.wait(timeout=5)
+
+
+def _handshake_result(init: dict[str, Any], tools_msg: dict[str, Any]) -> dict[str, Any]:
+    tools = (tools_msg.get("result") or {}).get("tools") or []
+    server_info = (init.get("result") or {}).get("serverInfo") or {}
+    return {
+        "ok": True,
+        "server_info": {"name": server_info.get("name"), "version": server_info.get("version")},
+        "tool_count": len(tools),
+        "tools": [{
+            "name": t.get("name"),
+            "description": str(t.get("description") or "")[:200],
+            "risk": _classify_tool_risk(str(t.get("name") or ""), str(t.get("description") or "")),
+        } for t in tools if isinstance(t, dict)],
+    }
+
+
+def _http_mcp_tools(url: str, timeout: float = 8.0) -> dict[str, Any]:
+    """Minimal streamable-HTTP MCP handshake: initialize → initialized → tools/list.
+
+    Servers may answer JSON-RPC over plain JSON or SSE frames and may issue a
+    session id that must round-trip on every subsequent request."""
+    session_id: str | None = None
+
+    def post(payload: dict[str, Any], expect_id: int | None) -> dict[str, Any] | None:
+        nonlocal session_id
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+            "MCP-Protocol-Version": MCP_PROTOCOL_VERSION,
+        }
+        if session_id:
+            headers["Mcp-Session-Id"] = session_id
+        req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers=headers, method="POST")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            session_id = resp.headers.get("Mcp-Session-Id") or session_id
+            if expect_id is None:
+                return None
+            ctype = resp.headers.get("Content-Type") or ""
+            body = resp.read().decode("utf-8", errors="replace")
+        if "text/event-stream" in ctype:
+            for line in body.splitlines():
+                if line.startswith("data:"):
+                    try:
+                        msg = json.loads(line[5:].strip())
+                    except Exception:
+                        continue
+                    if msg.get("id") == expect_id:
+                        return msg
+            return None
+        try:
+            msg = json.loads(body) if body.strip() else None
+        except Exception:
+            return None
+        return msg if isinstance(msg, dict) else None
+
+    try:
+        init = post({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+            "protocolVersion": MCP_PROTOCOL_VERSION,
+            "capabilities": {},
+            "clientInfo": {"name": "hermes-advanced-profile-manager", "version": "0.1"},
+        }}, 1)
+    except Exception as exc:
+        return {"ok": False, "stage": "initialize", "error": f"{type(exc).__name__}: {exc}"}
+    if not init or init.get("error"):
+        return {"ok": False, "stage": "initialize", "error": (init or {}).get("error") or "no response"}
+    try:
+        post({"jsonrpc": "2.0", "method": "notifications/initialized"}, None)
+        tools_msg = post({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}, 2)
+    except Exception as exc:
+        return {"ok": False, "stage": "tools/list", "error": f"{type(exc).__name__}: {exc}"}
+    if not tools_msg or tools_msg.get("error"):
+        return {"ok": False, "stage": "tools/list", "error": (tools_msg or {}).get("error") or "no response"}
+    return _handshake_result(init, tools_msg)
 
 
 WRITE_MARKERS = ("create", "update", "delete", "write", "set_", "add_", "remove", "post", "send", "run_", "execute", "modify", "close", "assign")
@@ -196,12 +259,7 @@ def mcp_test(profile: str, server: str) -> dict[str, Any]:
         else:
             result.update(_stdio_mcp_tools(resolved, entry["args"], _profile_env(profile)))
     elif entry["transport"] == "http/sse":
-        try:
-            req = urllib.request.Request(entry["url"], method="GET", headers={"Accept": "application/json, text/event-stream"})
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                result.update({"ok": True, "stage": "http", "status": resp.status})
-        except Exception as exc:
-            result.update({"ok": False, "stage": "http", "error": f"{type(exc).__name__}: {exc}"})
+        result.update(_http_mcp_tools(entry["url"]))
     else:
         result.update({"ok": False, "stage": "transport", "error": "unknown transport"})
     write_audit("mcp_test", profile, {"server": server, "ok": result.get("ok"), "tool_count": result.get("tool_count")})
