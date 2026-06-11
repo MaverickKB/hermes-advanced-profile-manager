@@ -9,6 +9,7 @@ Beginner-simple, power-user-friendly control of the WebUI server:
     profile-manager restart   stop + start
     profile-manager run       run in the foreground (logs to the terminal)
     profile-manager open      open the running UI in a browser
+    profile-manager update    git pull the latest release and restart if running
     profile-manager install-skill   install the agent-launchable Hermes skill
 
 The detached server never occupies a terminal: it daemonizes with a pidfile
@@ -227,6 +228,39 @@ def cmd_open(ns) -> int:
     return 0
 
 
+def cmd_update(ns) -> int:
+    """Pull the latest release into this checkout; restart the server if running."""
+    git = shutil.which("git")
+    if not (ROOT / ".git").exists() or not git:
+        reason = "git is not installed" if git is None else "this checkout was not installed with git"
+        print(f"Cannot self-update: {reason}.", file=sys.stderr)
+        print("Re-install with: git clone https://github.com/MaverickKB/hermes-advanced-profile-manager.git", file=sys.stderr)
+        return 1
+    rev = lambda: subprocess.run([git, "-C", str(ROOT), "rev-parse", "--short", "HEAD"],
+                                 capture_output=True, text=True).stdout.strip()
+    before = rev()
+    pull = subprocess.run([git, "-C", str(ROOT), "pull", "--ff-only"], capture_output=True, text=True)
+    if pull.returncode != 0:
+        print((pull.stderr or pull.stdout).strip(), file=sys.stderr)
+        print("Update failed — the checkout has local changes or a diverged history. "
+              "Resolve them (e.g. git stash) and re-run: profile-manager update", file=sys.stderr)
+        return 1
+    after = rev()
+    if before == after:
+        print(f"Already up to date ({after}).")
+        return 0
+    print(f"Updated {before} -> {after}.")
+    pip = ROOT / ".venv" / ("Scripts" if os.name == "nt" else "bin") / "pip"
+    if pip.exists():
+        subprocess.run([str(pip), "install", "--quiet", "-r", str(ROOT / "requirements.txt")], check=False)
+    if current_status(ns)["running"]:
+        print("Restarting the running server to apply the update…")
+        ns.no_open = True
+        return cmd_restart(ns)
+    print("Server not running; the update applies on next start.")
+    return 0
+
+
 def cmd_install_skill(ns) -> int:
     """Install the agent-launchable skill into a Hermes home (or profile)."""
     home = Path(ns.hermes_home).expanduser() if ns.hermes_home else hermes_paths.hermes_home()
@@ -256,7 +290,7 @@ def main(argv=None) -> int:
         description="Hermes Advanced Profile Manager — start/stop the WebUI without occupying a terminal.",
     )
     ap.add_argument("command", nargs="?", default="start",
-                    choices=["start", "stop", "status", "restart", "run", "open", "install-skill"],
+                    choices=["start", "stop", "status", "restart", "run", "open", "update", "install-skill"],
                     help="lifecycle command (default: start)")
     ap.add_argument("--port", type=int, default=DEFAULT_PORT)
     ap.add_argument("--host", default=DEFAULT_HOST)
@@ -268,7 +302,7 @@ def main(argv=None) -> int:
     handler = {
         "start": cmd_start, "stop": cmd_stop, "status": cmd_status,
         "restart": cmd_restart, "run": cmd_run, "open": cmd_open,
-        "install-skill": cmd_install_skill,
+        "update": cmd_update, "install-skill": cmd_install_skill,
     }[ns.command]
     return handler(ns)
 
