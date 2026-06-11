@@ -107,3 +107,43 @@ def test_install_skill(iso):
     assert wrapper.exists()
     env_pin = (skill_dir / "scripts" / "profile-manager.env").read_text()
     assert f"PROFILE_MANAGER_HOME={ROOT}" in env_pin
+
+
+def _git(*args, cwd):
+    subprocess.run(["git", "-c", "user.email=t@test", "-c", "user.name=t", *args],
+                   cwd=str(cwd), check=True, capture_output=True)
+
+
+def _update_ns():
+    import types
+    return types.SimpleNamespace(port=_free_port(), host="127.0.0.1", no_open=True, hermes_home="")
+
+
+def test_update_outside_git_checkout_explains_reinstall(monkeypatch, tmp_path, capsys):
+    sys.path.insert(0, "webui")
+    import manager_cli
+    monkeypatch.setattr(manager_cli, "ROOT", tmp_path)
+    rc = manager_cli.cmd_update(_update_ns())
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "git clone" in err
+
+
+def test_update_already_current(monkeypatch, tmp_path, capsys):
+    sys.path.insert(0, "webui")
+    import manager_cli
+    src = tmp_path / "checkout"
+    src.mkdir()
+    _git("init", "-q", cwd=src)
+    (src / "f.txt").write_text("1", encoding="utf-8")
+    _git("add", ".", cwd=src)
+    _git("commit", "-qm", "c1", cwd=src)
+    _git("remote", "add", "origin", str(src), cwd=src)
+    _git("fetch", "-q", "origin", cwd=src)
+    branch = subprocess.run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=str(src),
+                            capture_output=True, text=True, check=True).stdout.strip()
+    _git("branch", "-q", f"--set-upstream-to=origin/{branch}", cwd=src)
+    monkeypatch.setattr(manager_cli, "ROOT", src)
+    rc = manager_cli.cmd_update(_update_ns())
+    assert rc == 0
+    assert "Already up to date" in capsys.readouterr().out

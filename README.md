@@ -33,6 +33,20 @@ server **in the background** (no terminal occupied), opens
 ./scripts/profile-manager start --port 6001 --hermes-home ~/.hermes
 ```
 
+## Updating
+
+```bash
+./scripts/profile-manager update
+```
+
+One command: pulls the latest release into your checkout (`git pull
+--ff-only`), refreshes dependencies, and restarts the server if it is
+running. If you prefer the manual path, it is exactly that — `git pull`
+then `./scripts/profile-manager restart`. Your profiles, backups, and
+audit history are untouched by updates: Hermes config lives in your
+Hermes home, and manager state lives in `.profile-manager/`, which the
+repo ignores.
+
 ## Launch from a Hermes agent
 
 ```bash
