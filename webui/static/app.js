@@ -102,7 +102,9 @@ function fillCreateBase(){const s=$('#create-base');s.innerHTML='<option value="
 
 async function selectProfile(name){
   if(state.dirty&&!await confirmModal('Discard draft?','You have unsaved config draft changes for '+esc(state.active)+'. Discard them and switch to '+esc(name)+'?',{confirmLabel:'Discard and switch'}))return;
-  state.active=name;state.caches={};identityState.file=null;delState.view=null;delState.draft=null;chState.view=null;renderProfiles();fillSharedSelectors();
+  if(delState.profile&&delState.profile!==name&&delDirty()&&!await confirmModal('Discard delegation draft?','You have unsaved delegation authority changes for '+esc(delState.profile)+'. Discard them and switch to '+esc(name)+'?',{confirmLabel:'Discard and switch'}))return;
+  const keepDel=delState.profile===name&&delDirty();
+  state.active=name;state.caches={};identityState.file=null;if(!keepDel){delState.view=null;delState.draft=null;delState.profile=null}chState.view=null;renderProfiles();fillSharedSelectors();
   state.detail=await api('/api/profiles/'+encodeURIComponent(name));
   state.currentText=state.detail.config_text||'';state.dirty=false;
   hydrateSkillState(state.detail.skills||{skills:[]});
@@ -698,12 +700,16 @@ async function useDefaultAuth(){
 }
 
 /* ------------------------------------------------- live delegation authority */
-let delState={view:null,draft:null,filter:''};
+let delState={profile:null,view:null,draft:null,filter:''};
 async function loadDelegation(force){
   if(delState.view&&!force){renderDelegation();return}
+  // a dirty draft for the active profile survives view refreshes; it is only
+  // discarded explicitly (save, or the confirm in selectProfile)
+  const keep=delState.profile===state.active&&delDirty();
   const view=await api('/api/profiles/'+encodeURIComponent(state.active)+'/delegation');
   delState.view=view;
-  delState.draft={
+  delState.profile=state.active;
+  if(!keep)delState.draft={
     allowed:view.allowed_profiles.map(t=>t.name),
     allow_self:view.allow_self,
     max_depth:view.max_depth,
@@ -770,19 +776,24 @@ function renderDelegation(){
 }
 async function saveDelegation(){
   const d=delState.draft;if(!d)return;
+  if(!delDirty()){toast('No delegation changes to save.');return}
   const removed=(delState.view.allowed_profiles||[]).map(t=>t.name).filter(n=>!d.allowed.includes(n));
   const added=d.allowed.filter(n=>!(delState.view.allowed_profiles||[]).some(t=>t.name===n));
   if(!await confirmModal('Save delegation authority',
     'Write the delegation authority for <b>'+esc(state.active)+'</b> to config.yaml with backup?',
     {detail:(added.length?'<b>Grant:</b> '+esc(added.join(', '))+'<br>':'')+(removed.length?'<b>Revoke:</b> '+esc(removed.join(', ')):'')||'No target changes (settings only).',confirmLabel:'Save with backup'}))return;
-  const j=await api('/api/profiles/'+encodeURIComponent(state.active)+'/delegation',{method:'POST',body:JSON.stringify({
-    allowed_profiles:d.allowed,
-    allow_self:$('#del-allow-self').checked,
-    max_depth:$('#del-max-depth').value?parseInt($('#del-max-depth').value,10):null,
-    default_timeout_seconds:$('#del-timeout').value?parseInt($('#del-timeout').value,10):null,
-    confirm:true,
-  })});
+  let j;
+  try{
+    j=await api('/api/profiles/'+encodeURIComponent(state.active)+'/delegation',{method:'POST',body:JSON.stringify({
+      allowed_profiles:d.allowed,
+      allow_self:$('#del-allow-self').checked,
+      max_depth:$('#del-max-depth').value?parseInt($('#del-max-depth').value,10):null,
+      default_timeout_seconds:$('#del-timeout').value?parseInt($('#del-timeout').value,10):null,
+      confirm:true,
+    })});
+  }catch(err){toast('Save failed: '+err.message,'error');return}
   delState.view=j.view;
+  delState.profile=state.active;
   delState.draft={allowed:j.view.allowed_profiles.map(t=>t.name),allow_self:j.view.allow_self,max_depth:j.view.max_depth,timeout:j.view.default_timeout_seconds};
   renderDelegation();
   toast('Delegation authority saved. Backup: '+j.backup);
@@ -792,8 +803,12 @@ async function fixStaleDelegation(){
   if(!await confirmModal('Fix stale delegation names','Rewrite stale target names in <b>'+esc(state.active)+'</b> config with backup?',
     {detail:stale.map(t=>esc(t.name)+' → '+esc(t.resolves_to)).join('<br>'),confirmLabel:'Fix names'}))return;
   const j=await api('/api/profiles/'+encodeURIComponent(state.active)+'/delegation/fix-stale',{method:'POST',body:JSON.stringify({confirm:true})});
+  // remap names inside the working draft instead of resetting it, so pending
+  // grants/revokes survive the rename
+  const renames=Object.fromEntries((j.fixed||[]).map(f=>[f.from,f.to]));
   delState.view=j.view;
-  delState.draft={allowed:j.view.allowed_profiles.map(t=>t.name),allow_self:j.view.allow_self,max_depth:j.view.max_depth,timeout:j.view.default_timeout_seconds};
+  delState.profile=state.active;
+  delState.draft.allowed=[...new Set(delState.draft.allowed.map(n=>renames[n]||n))];
   renderDelegation();
   toast('Fixed '+(j.fixed||[]).length+' stale name(s). Backup: '+(j.backup||'none'));
 }
