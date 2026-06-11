@@ -23,7 +23,7 @@ from typing import Any
 
 import skill_groups as sg
 from env_auth import auth_status
-from hermes_paths import config_path, load_profile_config, parse_yaml_text, profile_dir, profiles_root, read_text
+from hermes_paths import list_profile_names, config_path, load_profile_config, parse_yaml_text, profile_dir, profiles_root, read_text
 
 STALE_CONFIG_DAYS = 90
 
@@ -36,10 +36,7 @@ def _norm(name: str) -> str:
 
 
 def _profile_names() -> list[str]:
-    root = profiles_root()
-    if not root.exists():
-        return []
-    return sorted((d.name for d in root.iterdir() if d.is_dir()), key=str.lower)
+    return list_profile_names()
 
 
 def _provider_routes(cfg: dict[str, Any]) -> list[tuple[str, str, str]]:

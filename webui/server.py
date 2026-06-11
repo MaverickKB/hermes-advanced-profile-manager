@@ -352,15 +352,10 @@ def find_profile_skills(profile: str) -> dict[str, Any]:
 
 
 def state_default_profile() -> str:
-    root = profiles_root()
-    if not root.exists():
-        return ""
-    if (root / "default").exists():
+    names = hermes_paths.list_profile_names()
+    if "default" in names:
         return "default"
-    for d in sorted(root.iterdir(), key=lambda p: p.name.lower()):
-        if d.is_dir():
-            return d.name
-    return ""
+    return names[0] if names else ""
 
 
 def intent_for_profile(name: str) -> IntentContract:
@@ -452,21 +447,17 @@ def default_orchestrator_graph(source: str, target: str = "uxdesigner") -> Deleg
 
 
 def profile_list() -> list[dict[str, Any]]:
-    root = profiles_root()
     out = []
-    if not root.exists():
-        return out
-    for d in sorted(root.iterdir(), key=lambda p: p.name.lower()):
-        if not d.is_dir():
-            continue
-        cp = config_path(d.name)
+    for name in hermes_paths.list_profile_names():
+        d = profile_dir(name)
+        cp = config_path(name)
         exists = cp.exists()
         text = read_text(cp) if exists else ""
         data, issues = parse_yaml_text(text) if exists else ({}, [])
         summary = summarize_config(data)
-        metadata = infer_profile_metadata(d.name, summary, {}, data if isinstance(data, dict) else {})
+        metadata = infer_profile_metadata(name, summary, {}, data if isinstance(data, dict) else {})
         out.append({
-            "name": d.name,
+            "name": name,
             "path": str(d),
             "config_path": str(cp),
             "has_config": exists,
@@ -1181,9 +1172,9 @@ def main(argv=None):
     if ns.hermes_home:
         os.environ["PROFILE_MANAGER_HERMES_HOME"] = str(Path(ns.hermes_home).expanduser())
     _server_port = ns.port
-    if not profiles_root().exists():
+    if not hermes_paths.list_profile_names():
         print(json.dumps({
-            "warning": "no profiles/ directory found at resolved Hermes home",
+            "warning": "no Hermes profiles found at resolved home (no profiles/ directory and no root config.yaml)",
             "resolved_hermes_home": str(hermes_home()),
             "hint": "pass --hermes-home /path/to/.hermes or set HERMES_HOME/PROFILE_MANAGER_HERMES_HOME",
         }, indent=2), file=sys.stderr, flush=True)

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from hermes_paths import backup_file, config_path, dump_yaml, load_profile_config, profiles_root, write_audit
+from hermes_paths import list_profile_names, backup_file, config_path, dump_yaml, load_profile_config, profiles_root, write_audit
 
 BUILTIN_TARGETS = {"default"}
 
@@ -27,10 +27,7 @@ def _norm(name: str) -> str:
 
 
 def _profile_names() -> list[str]:
-    root = profiles_root()
-    if not root.exists():
-        return []
-    return sorted((d.name for d in root.iterdir() if d.is_dir()), key=str.lower)
+    return list_profile_names()
 
 
 def _toolset_state(cfg: dict[str, Any], toolset: str) -> str:
