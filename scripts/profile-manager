@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Hermes Advanced Profile Manager — lifecycle CLI.
+#   profile-manager start|stop|status|restart|run|open|install-skill
+# Bootstraps a local venv on first run; never occupies the terminal in
+# `start` mode.
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PY="$ROOT/.venv/bin/python"
+if [[ ! -x "$PY" ]]; then
+  echo "First run: creating virtualenv and installing dependencies…" >&2
+  python3 -m venv "$ROOT/.venv"
+  "$PY" -m pip install --quiet --upgrade pip
+  "$PY" -m pip install --quiet -r "$ROOT/requirements.txt"
+fi
+exec "$PY" "$ROOT/webui/manager_cli.py" "$@"
