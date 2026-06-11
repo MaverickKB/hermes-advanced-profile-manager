@@ -110,6 +110,7 @@ button.accent,button.mini.accent{border-color:var(--accent);color:var(--accent)}
 .ex-legend i{display:inline-block;width:10px;height:10px;border-radius:999px;margin-right:5px;vertical-align:-1px}
 .ex-legend i.ring{background:transparent;border:2.5px solid}
 .ex-legend i.line{height:3px;border-radius:2px;width:16px;vertical-align:2px}
+.ex-layer-swatch{display:inline-block;width:14px;height:3px;border-radius:2px;margin:0 5px 0 4px;vertical-align:2px}
 .ex-status{position:absolute;top:10px;left:12px;font-size:12px;color:#8da3bd;background:rgba(8,12,20,.75);border:1px solid var(--line);border-radius:8px;padding:5px 10px;max-width:60%}
 .ex-panel{position:absolute;top:10px;right:10px;bottom:10px;width:330px;overflow:auto;background:rgba(11,17,28,.96);border:1px solid var(--line);border-radius:14px;padding:14px;backdrop-filter:blur(4px)}
 .ex-panel h3{margin:8px 0 10px;overflow-wrap:anywhere}

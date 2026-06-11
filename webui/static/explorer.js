@@ -5,7 +5,7 @@
 (()=>{
 const KIND_COLOR={profile:'#69d2ff',provider:'#b99cff',mcp:'#ffb86b',group:'#7dffa5',skill:'#5f7fa6',toolset:'#d8c75f'};
 const HEALTH_COLOR={ok:'#37d27a',warn:'#ffd36a',error:'#ff7878'};
-const EDGE_COLOR={delegates:'rgba(105,210,255,.55)',routes:'rgba(255,184,107,.5)',group:'rgba(125,255,165,.55)',mcp:'rgba(255,184,107,.45)','model-route':'rgba(185,156,255,.4)',skill:'rgba(95,127,166,.22)',toolset:'rgba(216,199,95,.25)'};
+const EDGE_COLOR={delegates:'rgba(105,210,255,.55)',routes:'rgba(88,101,242,.8)',group:'rgba(125,255,165,.55)',mcp:'rgba(255,184,107,.45)','model-route':'rgba(185,156,255,.4)',skill:'rgba(95,127,166,.22)',toolset:'rgba(216,199,95,.25)'};
 const EDGE_LABEL={delegates:'delegation','routes':'channel routing',group:'skill group',mcp:'MCP server','model-route':'provider route',skill:'skill',toolset:'toolset'};
 
 let ex={
@@ -497,10 +497,12 @@ function centerOn(n){ex.cam.x=-n.x*ex.cam.k;ex.cam.y=-n.y*ex.cam.k;draw()}
 
 /* ----------------------------------------------------------------- chrome */
 function status(msg){document.getElementById('ex-status').textContent=msg}
+const legendColor=c=>String(c).replace(/[\d.]+\)$/,'.9)');
 function renderLegend(){
   document.getElementById('ex-legend').innerHTML=
     Object.entries({profile:'profile',group:'skill group',mcp:'MCP server',provider:'provider',skill:'skill',toolset:'toolset'})
       .map(([k,label])=>`<span><i style="background:${KIND_COLOR[k]}"></i>${label}</span>`).join('')
+    +Object.keys(EDGE_COLOR).map(k=>`<span><i class="line" style="background:${legendColor(EDGE_COLOR[k])}"></i>${EDGE_LABEL[k]||k} thread</span>`).join('')
     +Object.entries(HEALTH_COLOR).map(([k,clr])=>`<span><i class="ring" style="border-color:${clr}"></i>${k}</span>`).join('')
     +`<span><i class="line" style="background:rgba(255,120,120,.8)"></i>broken/stale link</span>`;
 }
@@ -519,9 +521,16 @@ function resize(){
 }
 function wireControls(){
   document.querySelectorAll('[data-exmode]').forEach(b=>b.onclick=()=>setMode(b.dataset.exmode));
-  document.querySelectorAll('[data-exlayer]').forEach(cb=>cb.onchange=()=>{
-    ex.layers[cb.dataset.exlayer]=cb.checked;
-    applyMode(false);reheat(0.6);
+  document.querySelectorAll('[data-exlayer]').forEach(cb=>{
+    // each layer toggle carries the swatch of the thread color it controls
+    const sw=document.createElement('i');
+    sw.className='ex-layer-swatch';
+    sw.style.background=legendColor(EDGE_COLOR[cb.dataset.exlayer]||'rgba(160,180,200,.5)');
+    cb.after(sw);
+    cb.onchange=()=>{
+      ex.layers[cb.dataset.exlayer]=cb.checked;
+      applyMode(false);reheat(0.6);
+    };
   });
   document.getElementById('ex-issues-only').onchange=e=>{ex.issuesOnly=e.target.checked;applyMode(true)};
   document.getElementById('ex-fit').onclick=fit;
