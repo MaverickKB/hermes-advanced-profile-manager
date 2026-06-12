@@ -404,7 +404,7 @@ function wireCanvas(){
     setZoom(ex.cam.k*Math.exp(-ev.deltaY*0.0014),sx,sy);
   },{passive:false});
   c.addEventListener('pointerdown',ev=>{
-    c.setPointerCapture(ev.pointerId);
+    try{c.setPointerCapture(ev.pointerId)}catch(e){}
     const pos=worldFromEvent(ev);
     const n=nodeAt(pos);
     if(n){ex.dragNode=n;n._wasDragged=false;reheat(Math.max(ex.alpha,0.25))}
@@ -426,13 +426,19 @@ function wireCanvas(){
       if(id!==ex.hovered){ex.hovered=id;c.style.cursor=id?'pointer':'grab';draw()}
     }
   });
-  c.addEventListener('pointerup',ev=>{
+  // every way a pointer interaction can end must release the drag — a missed
+  // pointercancel (trackpad gesture, focus loss) otherwise leaves the pan stuck
+  const endDrag=ev=>{
     if(ex.dragNode){
-      if(!ex.dragNode._wasDragged)selectNode(ex.dragNode.id);
+      if(ev&&ev.type==='pointerup'&&!ex.dragNode._wasDragged)selectNode(ex.dragNode.id);
       ex.dragNode=null;
     }
     ex.panStart=null;
-  });
+  };
+  c.addEventListener('pointerup',endDrag);
+  c.addEventListener('pointercancel',endDrag);
+  c.addEventListener('lostpointercapture',endDrag);
+  window.addEventListener('blur',()=>endDrag());
   c.addEventListener('dblclick',ev=>{
     const n=nodeAt(worldFromEvent(ev));
     if(n){ex.focus=n.id;setMode('mindmap')}
