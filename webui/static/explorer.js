@@ -37,6 +37,11 @@ async function load(fresh){
   status(`${j.counts.profiles} profiles · ${j.counts.nodes} nodes · ${j.counts.edges} edges · health: ${j.counts.health.ok} ok / ${j.counts.health.warn} warn / ${j.counts.health.error} error`);
   renderLegend();
   applyMode(true);
+  // an open detail panel must reflect the fresh scan, not the one it was opened from
+  if(ex.selected){
+    if(ex.byId.has(ex.selected))selectNode(ex.selected);
+    else{ex.selected=null;document.getElementById('ex-panel').classList.add('hidden')}
+  }
 }
 function visibleEdge(e){
   if(!ex.layers[e.kind])return false;
